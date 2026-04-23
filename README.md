@@ -3,7 +3,7 @@
 <p><strong>Description</strong></p>
 
 <p>
-    generate_tfmovr4anime is a specialized tool designed to process and clean up TFM (Field Matching) output files, specifically optimized for hand-drawn (cel) animation. Unlike general IVTC tools, this program uses a unique algorithm to maintain stable telecine cycles even during long still-frame sequences or irregular cel-action where pulses are frequently missing.<br>
+    generate_tfmovr4anime is a specialized tool designed to process and clean up TFM (Field Matching) output files, specifically optimized for hand-drawn (cel) animation. This program uses a unique algorithm to maintain stable telecine cycles even during long still-frame sequences or irregular cel-action where pulses are frequently missing.<br>
     By eliminating incorrect match code (c/p) detections and snapping to the earliest consistent boundary, it enables highly accurate and stable field matching for anime sources.
 </p>
 
