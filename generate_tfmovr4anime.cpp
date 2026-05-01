@@ -16,7 +16,7 @@ const vector<string> VALID_PATTERNS = { "cccpp", "pcccp", "ppccc", "cppcc", "ccp
 
 struct TfmEntry {
     size_t frame;
-    char type;       // 'p', 'c', 'h'
+    char type;       // 'p', 'c', 'h' (u is converted to h)
     bool is_combed;  // '+' if true, '-' if false
     int mic;         // mic value
 };
@@ -113,7 +113,7 @@ static size_t find_boundary(span<const TfmEntry> window, CyclePhase old_p, Cycle
                 if (window[i].type == 'c') errors++;
             }
             else {
-                if (window[i].type == 'p') errors++;
+                if (window[i].type == 'p') errors++; 
             }
         }
         if (errors < min_error) {
@@ -127,14 +127,19 @@ static size_t find_boundary(span<const TfmEntry> window, CyclePhase old_p, Cycle
 
 static void PrintTfmUsage() {
     cout << "The output of TFM is as follows:" << endl;
-    cout << "TFM(mode=0,pp=1,slow=2,micmatching=0,output=\"x:\\path\\filename.tfm\")" << endl;
+    cout << "TFM(mode=0,pp=1,slow=2,micmatching=0,output=\"x:\\path\\filename.tfm\")" << endl << endl;
+}
+
+static void PrintITUsage() {
+    cout << "The output of IT_YV12 is as follows:" << endl;
+    cout << "IT(fps=30,dimode=0,write=\"x:\\path\\filename.it\")" << endl;
 }
 
 static void print_usage() {
     cout << "--------------------------------------" << endl;
-    cout << "generate_tfmovr4anime v1.0.0 by Ikotas" << endl;
+    cout << "generate_tfmovr4anime v1.1.0 by Ikotas" << endl;
     cout << "--------------------------------------" << endl;
-    cout << "Usage: generate_tfmovr4anime.exe [options] TFM_output_file" << endl << endl;
+    cout << "Usage: generate_tfmovr4anime.exe [options] input_file" << endl << endl;
     cout << "Options:" << endl;
     cout << "  -t <int>    threshold_min_p (default: 6)" << endl;
     cout << "  -r <float>  ratio_threshold (default: 0.9)" << endl;
@@ -143,7 +148,9 @@ static void print_usage() {
     cout << "  -m <int>    min_segment_len (default: 150)" << endl;
     cout << "  -b <int>    boundary_back   (default: 300)" << endl;
     cout << "  -o <file>   output filename" << endl << endl;
+    cout << "Supported Formats: .tfm (TFM Output), .it (IT_YV12)" << endl << endl;
     PrintTfmUsage();
+    PrintITUsage();
 }
 
 int main(int argc, char* argv[]) {
@@ -176,40 +183,60 @@ int main(int argc, char* argv[]) {
     if (!fs::exists(tfmP)) {
         cerr << "Error: " << tfmP.filename().string() << " not found." << endl;
         PrintTfmUsage();
+        PrintITUsage();
         return 1;
     }
 
-    fs::path outP;
-    if (outPathStr.empty()) {
-        outP = tfmP; outP.replace_extension(".tfmovr");
-    }
-    else {
-        outP = outPathStr;
-        if (!outP.has_extension()) outP.replace_extension(".tfmovr");
-    }
+    fs::path outP = outPathStr.empty() ? tfmP.parent_path() / (tfmP.stem().string() + ".tfmovr") : fs::path(outPathStr);
 
     vector<TfmEntry> entries;
     ifstream ifs(tfmP);
     string line;
-    regex re(R"((\d+)\s+([cph])\s+([\+\-])\s+\[(\d+)\])");
+    regex reTfm(R"((\d+)\s+([cph])\s+([\+\-])\s+\[(\d+)\])");
+    regex reIt(R"(^\s*(\d+)\s+([a-zA-Z\*]{5}))");
     smatch m;
 
+    bool is_it_format = false; bool format_detected = false; bool stop_reading = false;
+
     while (getline(ifs, line)) {
-        if (line.empty() || line[0] == '#') continue;
-        if (regex_search(line, m, re)) {
-            entries.push_back({
-                static_cast<size_t>(stoull(m.str(1))),
-                m.str(2)[0],
-                m.str(3) == "+",
-                stoi(m.str(4))
-                });
+        if (stop_reading || line.empty() || line[0] == '#') continue;
+
+        if (!format_detected) {
+            if (regex_search(line, m, reIt)) {
+                is_it_format = true;
+                format_detected = true;
+            }
+            else if (regex_search(line, m, reTfm)) {
+                is_it_format = false;
+                format_detected = true;
+            }
+            if (!format_detected) continue;
+        }
+
+        if (is_it_format) {
+            if (regex_search(line, m, reIt)) {
+                size_t base_f = stoull(m.str(1)); string states = m.str(2);
+                for (size_t j = 0; j < 5; ++j) {
+                    char r_type = static_cast<char>(tolower(states[j]));
+                    if (r_type == '*') {
+                        stop_reading = true; break;
+                    }
+                    entries.push_back({ base_f + j, (r_type == 'u' ? 'h' : r_type), false, 0 });
+                }
+            }
+        }
+        else {
+            if (regex_search(line, m, reTfm)) {
+                entries.push_back({ static_cast<size_t>(stoull(m.str(1))), m.str(2)[0], m.str(3) == "+", stoi(m.str(4))});
+            }
         }
     }
 
     if (entries.empty()) {
-        cerr << "Error: " << tfmP.filename().string() << " does not contain valid TFM output data." << endl;
-        cerr << "Please specify a correct TFM output file." << endl << endl;
+        cerr << "Error: " << tfmP.filename().string() << " does not contain valid output data." << endl;
+        cerr << "Please specify a correct output file." << endl << endl;
         PrintTfmUsage();
+        PrintITUsage();
         return 1;
     }
 

@@ -361,3 +361,5 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+/bak/generate_tfmovr4anime_v1.0.0.cpp
+/bak/generate_tfmovr4anime_v1.1.0.cpp
